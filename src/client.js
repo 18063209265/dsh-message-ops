@@ -4330,14 +4330,34 @@ window.__ModuleLoader__.load({
           })
       }
 
-      var ensureBtn = block => {
-        // 官方动作行（含 Copy）：把按钮放到这一行里，与 Copy 同级
-        let host = block.querySelector('[class*="xzv4MW_actions"]')
+      // Share one host across scans and all three buttons. CSS-module hashes can
+      // change between DSH builds; match the action class suffix, not its hash.
+      var ensureUserActionsHost = block => {
+        const fallbackRows = Array.from(block.querySelectorAll('.mopsUserActionsRow'))
+        let host = Array.from(block.querySelectorAll('[class*="_actions"]')).find(el =>
+          Array.from(el.classList).some(name => name.endsWith('_actions')),
+        ) || fallbackRows[0]
         if (!host) {
           host = document.createElement('div')
           host.className = 'mopsUserActionsRow'
           block.appendChild(host)
         }
+        // Repair already accumulated rows, preserving one live button/listener
+        // per action. Also migrate fallback buttons if the native row appears.
+        for (const className of ['mopsUserRevert', 'mopsUserEdit', 'mopsUserFork']) {
+          const buttons = Array.from(block.querySelectorAll('.' + className))
+          const keep = host.querySelector('.' + className) || buttons[0]
+          if (keep && keep.parentElement !== host) host.appendChild(keep)
+          for (const button of buttons) if (button !== keep) button.remove()
+        }
+        for (const row of fallbackRows) {
+          if (row !== host && row.childNodes.length === 0) row.remove()
+        }
+        return host
+      }
+
+      var ensureBtn = block => {
+        const host = ensureUserActionsHost(block)
         let btn = host.querySelector('.mopsUserRevert')
         if (btn) return btn
         btn = document.createElement('button')
@@ -4363,12 +4383,7 @@ window.__ModuleLoader__.load({
 
       /** 0.12.0 分叉按钮：与回滚按钮**同一动作行**（opencode 把 fork 放在 copy/undo 同组）。 */
       var ensureForkBtn = block => {
-        let host = block.querySelector('[class*="xzv4MW_actions"]')
-        if (!host) {
-          host = document.createElement('div')
-          host.className = 'mopsUserActionsRow'
-          block.appendChild(host)
-        }
+        const host = ensureUserActionsHost(block)
         const existing = host.querySelector('.mopsUserFork')
         if (existing) return existing
         const btn = document.createElement('button')
@@ -4403,12 +4418,7 @@ window.__ModuleLoader__.load({
        * 图标取官方 `edit-outline` 几何（16 viewBox，填充几何 —— 与分叉图标同族写法）。
        */
       var ensureEditBtn = block => {
-        let host = block.querySelector('[class*="xzv4MW_actions"]')
-        if (!host) {
-          host = document.createElement('div')
-          host.className = 'mopsUserActionsRow'
-          block.appendChild(host)
-        }
+        const host = ensureUserActionsHost(block)
         const existing = host.querySelector('.mopsUserEdit')
         if (existing) return existing
         const btn = document.createElement('button')
